@@ -17,10 +17,9 @@
 *	Los comentarios mostrados por pantalla seran en castellano. SE OMITIRA EL USO DE\
 *	TILDES.
 *	<p>
-*	El programa esta pensado para ser ejecutado en una maquina con nucleo Linux y un\
-*	procesador con un solo nucleo. Las pruebas se han realizado en un sistema\
-*	operativo Linux, distribucion Feroda 25 LXDE DESKTOP con version kernel:\
-*	4.10.15-200.fc25.x86_64
+*	El programa esta pensado para ser ejecutado en una sistema GNULinux y un procesador\
+*	con un solo nucleo. Las pruebas se han realizado en un sistema GNU/Linux,\
+*	distribucion Feroda 25 LXDE DESKTOP con version kernel:	4.10.15-200.fc25.x86_64.
 *
 */
 #include <stdio.h>
@@ -58,8 +57,8 @@
 #define ERROR_PTRD_ATTR_INIT   0x05
 #define ERROR_PTRD_ATTR_SETINH 0x06
 #define ERROR_PTRD_ATTR_SETPOL 0x07
-#define ERROR_PTRD_SETSCHED	   0x08
-#define ERROR_PTRD_CREATE	   0x09
+#define ERROR_PTRD_SETSCHED    0x08
+#define ERROR_PTRD_CREATE      0x09
 
 
 
@@ -218,35 +217,35 @@ int main() {
 
 	// THREADS
 	// Configurando attr
-	if( pthread_attr_init( &attr) != 0) 								   error(ERROR_PTRD_ATTR_INIT);
-	if( pthread_attr_setschedpolicy( &attr, SCHED_FIFO) != 0) 			   error(ERROR_PTRD_ATTR_SETPOL);
+	if( pthread_attr_init( &attr) != 0)                                    error(ERROR_PTRD_ATTR_INIT);
+	if( pthread_attr_setschedpolicy( &attr, SCHED_FIFO) != 0)              error(ERROR_PTRD_ATTR_SETPOL);
 	if( pthread_attr_setinheritsched( &attr, PTHREAD_EXPLICIT_SCHED) != 0) error(ERROR_PTRD_ATTR_SETINH);
 	
 	// Configurando las prioridades de las hebras y lanzandolas
 
 	// #M
 	prio.sched_priority = 1;
-	if( pthread_attr_setschedparam(&attr, &prio) != 0) 	        error(ERROR_PTRD_SETSCHED);
+	if( pthread_attr_setschedparam(&attr, &prio) != 0)          error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&monitor, &attr, monitoring, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #Ct
 	prio.sched_priority = 2;
-	if( pthread_attr_setschedparam(&attr, &prio) != 0) 	   						     error(ERROR_PTRD_SETSCHED);
+	if( pthread_attr_setschedparam(&attr, &prio) != 0)                               error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&control_temperatura, &attr, temperature_control, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #St
 	prio.sched_priority = 3;
-	if( pthread_attr_setschedparam(&attr, &prio) != 0) 	  						   error(ERROR_PTRD_SETSCHED);
+	if( pthread_attr_setschedparam(&attr, &prio) != 0)                             error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&sensor_temperatura, &attr, temperature_sensor, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #Cp
 	prio.sched_priority = 4;
-	if( pthread_attr_setschedparam(&attr, &prio) != 0) 	  					  error(ERROR_PTRD_SETSCHED);
+	if( pthread_attr_setschedparam(&attr, &prio) != 0)                        error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&control_presion, &attr, pressure_control, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #Sp
 	prio.sched_priority = 5;
-	if( pthread_attr_setschedparam(&attr, &prio) != 0) 	 				    error(ERROR_PTRD_SETSCHED);
+	if( pthread_attr_setschedparam(&attr, &prio) != 0)                      error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&sensor_presion, &attr, pressure_sensor, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	pthread_join(monitor, NULL); // #M
@@ -292,11 +291,11 @@ void configure_mutex() {
 	
 	// temperatura
 	if( pthread_mutexattr_setprotocol(&attr_temp_mutex, PTHREAD_PRIO_PROTECT) != 0) error(ERROR_SET_PROTOCOL);
-	if( pthread_mutexattr_setprioceiling(&attr_temp_mutex, 3) != 0) 			    error(ERROR_SET_PRIOCEILING);
+	if( pthread_mutexattr_setprioceiling(&attr_temp_mutex, 3) != 0)                 error(ERROR_SET_PRIOCEILING);
 
 	// presion
 	if( pthread_mutexattr_setprotocol(&attr_press_mutex, PTHREAD_PRIO_PROTECT) != 0) error(ERROR_SET_PROTOCOL);
-	if( pthread_mutexattr_setprioceiling(&attr_press_mutex, 5) != 0) 				 error(ERROR_SET_PRIOCEILING);
+	if( pthread_mutexattr_setprioceiling(&attr_press_mutex, 5) != 0)                 error(ERROR_SET_PRIOCEILING);
 
 	pthread_mutex_init(&mutex_temp, &attr_temp_mutex);
 	pthread_mutex_init(&mutex_press, &attr_press_mutex);
