@@ -36,7 +36,9 @@
 // ==============================
 // === TIPOS ====================
 // ==============================
+
 typedef uint8_t error_t;
+typedef uint8_t state_t;
 
 
 
@@ -46,7 +48,7 @@ typedef uint8_t error_t;
 
 int temp, press;
 pthread_mutex_t mutex_temp, mutex_press;
-uint8_t state;
+state_t state;
 
 
 
