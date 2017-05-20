@@ -113,7 +113,7 @@ static void normalizar(struct timespec* tm)
 *   
 *	@see Codigo de errores en linea 27
 */
-void error(uint8_t error_code) {
+void error(error_t error_code) {
 	
 	switch(error_code) {
 		case ERROR_SET_PROTOCOL:
