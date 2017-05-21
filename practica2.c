@@ -17,7 +17,7 @@
 *	Los comentarios mostrados por pantalla seran en castellano. SE OMITIRA EL USO DE\
 *	TILDES.
 *	<p>
-*	El programa esta pensado para ser ejecutado en una sistema GNULinux y un procesador\
+*	El programa esta pensado para ser ejecutado en una sistema GNU/Linux y un procesador\
 *	con un solo nucleo. Las pruebas se han realizado en un sistema GNU/Linux,\
 *	distribucion Feroda 25 LXDE DESKTOP con version kernel:	4.10.15-200.fc25.x86_64.
 *
@@ -103,14 +103,15 @@ void *monitoring( void *args); // #M
 */
 void ms_espera_activa( int tiempo) {
 
-	// TODO: BIG PROBLEM, DON'T WORK, consultar con el profe
-	struct timeval start, now;
+	struct timespec start, now;
+	long diff;
 
-	gettimeofday(&start, NULL);
+	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	do {
-		gettimeofday(&now, NULL);
-	}while( (now.tv_usec - start.tv_usec) < tiempo*1000);
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		diff = (now.tv_sec - start.tv_sec)*1000 + (now.tv_nsec - start.tv_nsec)/1000000L;
+	}while( diff < tiempo);
 	
 }
 
@@ -148,7 +149,7 @@ void get_actual_time() {
 
 	time( &rawtime);
 	timeinfo = localtime( &rawtime);
-	printf ("\n%s::", asctime(timeinfo) );
+	printf ("\n%s", asctime(timeinfo) );
 }
 
 /**
@@ -193,7 +194,7 @@ void error(error_t error_code) {
 
 	}
 
-	printf("Finish the execution...\n");
+	printf("Exiting of the program...\n");
 	exit(-1);
 }
 
@@ -218,8 +219,8 @@ int main() {
 	// THREADS
 	// Configurando attr
 	if( pthread_attr_init( &attr) != 0)                                    error(ERROR_PTRD_ATTR_INIT);
-	if( pthread_attr_setschedpolicy( &attr, SCHED_FIFO) != 0)              error(ERROR_PTRD_ATTR_SETPOL);
 	if( pthread_attr_setinheritsched( &attr, PTHREAD_EXPLICIT_SCHED) != 0) error(ERROR_PTRD_ATTR_SETINH);
+	if( pthread_attr_setschedpolicy( &attr, SCHED_RR) != 0)                error(ERROR_PTRD_ATTR_SETPOL);
 	
 	// Configurando las prioridades de las hebras y lanzandolas
 
@@ -234,17 +235,17 @@ int main() {
 	if( pthread_create(&control_temperatura, &attr, temperature_control, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #St
-	prio.sched_priority = 3;
+	prio.sched_priority = 2;
 	if( pthread_attr_setschedparam(&attr, &prio) != 0)                             error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&sensor_temperatura, &attr, temperature_sensor, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #Cp
-	prio.sched_priority = 4;
+	prio.sched_priority = 2;
 	if( pthread_attr_setschedparam(&attr, &prio) != 0)                        error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&control_presion, &attr, pressure_control, NULL) != 0) error(ERROR_PTRD_CREATE);
 
 	// #Sp
-	prio.sched_priority = 5;
+	prio.sched_priority = 2;
 	if( pthread_attr_setschedparam(&attr, &prio) != 0)                      error(ERROR_PTRD_SETSCHED);
 	if( pthread_create(&sensor_presion, &attr, pressure_sensor, NULL) != 0) error(ERROR_PTRD_CREATE);
 
@@ -253,7 +254,7 @@ int main() {
 	pthread_join(control_presion, NULL); // #Cp
 	pthread_join(sensor_presion, NULL); // #Sp
 	pthread_join(sensor_temperatura, NULL); // #St
-
+	
 	return 0;
 }
 
@@ -291,11 +292,11 @@ void configure_mutex() {
 	
 	// temperatura
 	if( pthread_mutexattr_setprotocol(&attr_temp_mutex, PTHREAD_PRIO_PROTECT) != 0) error(ERROR_SET_PROTOCOL);
-	if( pthread_mutexattr_setprioceiling(&attr_temp_mutex, 3) != 0)                 error(ERROR_SET_PRIOCEILING);
+	if( pthread_mutexattr_setprioceiling(&attr_temp_mutex, 2) != 0)                 error(ERROR_SET_PRIOCEILING);
 
 	// presion
 	if( pthread_mutexattr_setprotocol(&attr_press_mutex, PTHREAD_PRIO_PROTECT) != 0) error(ERROR_SET_PROTOCOL);
-	if( pthread_mutexattr_setprioceiling(&attr_press_mutex, 5) != 0)                 error(ERROR_SET_PRIOCEILING);
+	if( pthread_mutexattr_setprioceiling(&attr_press_mutex, 2) != 0)                 error(ERROR_SET_PRIOCEILING);
 
 	pthread_mutex_init(&mutex_temp, &attr_temp_mutex);
 	pthread_mutex_init(&mutex_press, &attr_press_mutex);
@@ -323,7 +324,9 @@ void *pressure_control( void *args) {
 
 	while(1) {
 
+		printf("Cp::Cogiendo mutex_press\n");
 		pthread_mutex_lock(&mutex_press);
+		printf("Cp::Cogiedo mutex_press\n");
 
 		if (press > MAX_PRESSURE) {
 			// Abrimos la valvula para bajar la presion
@@ -331,7 +334,7 @@ void *pressure_control( void *args) {
 			get_actual_time();
 			printf("CONTROL DE PRESION: ABRIENDO la valvula de presion...\n");
 		}
-		else if (press > MIN_PRESSURE) {
+		else if (press < MIN_PRESSURE && (state & PRES_MASK) > 0) {
 			// Cerramos la valvula de presion
 			state &= DEACT_PRES;
 			get_actual_time();
@@ -339,13 +342,16 @@ void *pressure_control( void *args) {
 		}
 		ms_espera_activa(350); // TODO: ir a funciones para ver el estado
 
+		printf("Cp::Soltando mutex_press\n");
 		pthread_mutex_unlock(&mutex_press);
+		printf("Cp::Soltado mutex_press\n");
 
-		// TODO: Comprobar que esto es correcto, para el tema de los milisegundos
-		next_activation.tv_nsec += 350000L; // Calculamos siguiente activacion
+		next_activation.tv_nsec += 350000000L; // Calculamos siguiente activacion
 		normalizar(&next_activation); // Normalizamos
 
+		printf("Cp::A dormir\n");
 		if( clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_activation, NULL)) error(ERROR_CLOCK_NANOSLEEP);
+		printf("Cp::Despertando\n");
 	}
 
 }
@@ -369,16 +375,18 @@ void *temperature_control( void *args) {
 
 	while(1) {
 
+		printf("Ct::Cogiendo mutex_temp\n");
 		pthread_mutex_lock(&mutex_temp);
+		printf("Ct::Cogido mutex_temp\n");
 
 		if (temp > MAX_TEMPERATURE) {
 			// Activamos refrigeracion
 			state |= ACT_TEMP;
 
 			get_actual_time();
-			printf("CONTROL DE TEMPERATURA: ACTIVADNO sistema de refrigeracion...\n");
+			printf("CONTROL DE TEMPERATURA: ACTIVANDO sistema de refrigeracion...\n");
 		}
-		else if (temp > MIN_TEMPERATURE) {
+		else if (temp < MIN_TEMPERATURE && (state & TEMP_MASK) > 0) {
 			// Desactivamos refrigeracion
 			state &= DEACT_TEMP;
 
@@ -387,13 +395,16 @@ void *temperature_control( void *args) {
 		}
 		ms_espera_activa(450); // TODO: ir a funciones para ver el estado
 
+		printf("Ct::Soltando mutex_temp\n");
 		pthread_mutex_unlock(&mutex_temp);
+		printf("Ct::Soltado mutex_press\n");
 
-		// TODO: Comprobar que esto es correcto, para el tema de los milisegundos
-		next_activation.tv_nsec += 500000L; // Calculamos siguiente activacion
+		next_activation.tv_nsec += 500000000L; // Calculamos siguiente activacion
 		normalizar(&next_activation); // Normalizamos
 
+		printf("Ct::Me voy a dormir\n");
 		if( clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_activation, NULL)) error(ERROR_CLOCK_NANOSLEEP);
+		printf("Ct::Me he despertado\n");
 	}
 }
 
@@ -416,7 +427,9 @@ void *pressure_sensor( void *args) {
 
 	while(1) {
 
+		printf("Sp::Cogiendo mutex_press\n");
 		pthread_mutex_lock(&mutex_press);
+		printf("Sp::Cogido mutex_press\n");
 
 		if( (state & PRES_MASK) > 0) {
 			// valvula abierta
@@ -427,13 +440,16 @@ void *pressure_sensor( void *args) {
 		}
 		ms_espera_activa(250); // TODO: ir a funciones para ver el estado
 
+		printf("Sp::Soltando mutex_press\n");
 		pthread_mutex_unlock(&mutex_press);
+		printf("Sp::Soltado mutex_press\n");
 
-		// TODO: Comprobar que esto es correcto, para el tema de los milisegundos
-		next_activation.tv_nsec += 300000L; // Calculamos siguiente activacion
+		next_activation.tv_nsec += 300000000L; // Calculamos siguiente activacion
 		normalizar(&next_activation); // Normalizamos
 
+		printf("Sp::Me voy a dormir\n");
 		if( clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_activation, NULL)) error(ERROR_CLOCK_NANOSLEEP);
+		printf("Sp::Me he despertado\n");
 	}
 
 }
@@ -457,7 +473,9 @@ void *temperature_sensor( void *args) {
 
 	while(1) {
 
+		printf("St::Cogiendo mutex_temp\n");
 		pthread_mutex_lock(&mutex_temp);
+		printf("St::Cogido mutex_temp\n");
 
 		if( (state & TEMP_MASK) > 0) {
 			// refrigeracion activada
@@ -468,13 +486,16 @@ void *temperature_sensor( void *args) {
 		}
 		ms_espera_activa(370); // TODO: ir a funciones para ver el estado
 
+		printf("St::Soltando mutex_temp\n");
 		pthread_mutex_unlock(&mutex_temp);
+		printf("St::Soltado mutex_temp\n");
 
-		// TODO: Comprobar que esto es correcto, para el tema de los milisegundos
-		next_activation.tv_nsec += 400000L; // Calculamos siguiente activacion
+		next_activation.tv_nsec += 400000000L; // Calculamos siguiente activacion
 		normalizar(&next_activation); // Normalizamos
 
+		printf("St::Voy a dormir\n");
 		if( clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_activation, NULL)) error(ERROR_CLOCK_NANOSLEEP);
+		printf("St::Me he despertado\n");
 	}
 
 }
@@ -498,10 +519,17 @@ void *monitoring( void *args) {
 
 	while(1) {
 
+		printf("M::Cogiendo mutex_temp\n");
 		pthread_mutex_lock(&mutex_temp);
+		printf("M::Cogido mutex_temp\n");
+		printf("M::Cogiendo mutex_press\n");
 		pthread_mutex_lock(&mutex_press);
+		printf("M::Cogido mutex_press\n");
 
 		printf("\n\n");
+		get_actual_time();
+		printf("=============================================\n");
+		printf("ESTADO DEL SISTEMA:\n");
 		printf("-Temperatura = %d\n", temp);
 		printf("-Presion     = %d\n", press);
 		printf("-Estado de los sistemas auxiliares:\n");
@@ -524,16 +552,24 @@ void *monitoring( void *args) {
 				printf("\tVALVULA de presion ABIERTA\n");
 				break;
 		}
+		printf("=============================================\n");
 		printf("\n");
 
-		pthread_mutex_unlock(&mutex_press);
-		pthread_mutex_unlock(&mutex_temp);
+		ms_espera_activa(800);
 
-		// TODO: Comprobar que esto es correcto, para el tema de los milisegundos
-		next_activation.tv_nsec += 400000L; // Calculamos siguiente activacion
+		printf("M::Soltando mutex_press\n");
+		pthread_mutex_unlock(&mutex_press);
+		printf("M::Soltado mutex_press\n");
+		printf("M::Soltando mutex_temp\n");
+		pthread_mutex_unlock(&mutex_temp);
+		printf("M::Soltado mutex_temp\n");
+
+		next_activation.tv_sec += 1; // Calculamos siguiente activacion
 		normalizar(&next_activation); // Normalizamos
 
+		printf("M::Me voy a dormir\n");
 		if( clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_activation, NULL)) error(ERROR_CLOCK_NANOSLEEP);
+		printf("M::Me he despertado\n");
 	}
 
 }
