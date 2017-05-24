@@ -22,6 +22,8 @@ El programa se debe ejecutar con permisos de super usuario, se crearan 2 fichero
 
 * estacion_sotr.log: Ficherlo ubicado en /var/log para guardar un registro del programa.
 
+Se ha documentado el programa segun javadoc, y se usa un sistema de etiqueta de puntos claves.
+
 # Ejecucion
 
 Para compilar el programa:
@@ -30,7 +32,7 @@ Para compilar el programa:
 
 Depues **debe ser ejecutado como super usuario**:
 
-> sudo ./ejecutable
+> $ sudo ./ejecutable
 
 Sino las hebras no se podran crear y el programa se cerrara
 
@@ -41,8 +43,24 @@ El programa, como se dice en la introcuccion, creara 2 ficheros, uno en la misma
 Para visualizar los datos basta con abrir el fichero index.html, que debera encontrarse en el mismo directorio, se veran 2
 graficas con los ultimos datos guardados por el sistema con su hora.
 
+# Etiquetas 'Navigation Friendly'
+
+* **#M** Hebra monitorizacion
+
+* **#Cp** Hebra Control Presion
+
+* **#Sp** Hebra Sensor Presion
+
+* **#Ct** Hebra Control temperatura
+
+* **#St** Hebra Sensor de temperatura
+
+* **#F** Uso de algun fichero, ya sea apertura, cierre o escritura 
+
+* **#E** Para los errores
+
 # Creditos
 
 Autor: Jose Manuel Rodriguez Montes
 
-Version: 1.0, 24 de Mayo de 2017
+Version: 1.0.1, 24 de Mayo de 2017

@@ -26,7 +26,7 @@
 *	</ul>
 *
 *	@auth 	 Jose Manuel Rodriguez Montes
-*	@version 1.0, 24 de Mayo de 2017
+*	@version 1.0.1, 24 de Mayo de 2017
 */
 #include <stdio.h>
 #include <unistd.h>
