@@ -1,7 +1,4 @@
 /**
-*	@auth 	 Jose Manuel Rodriguez Montes
-*	@version 0.1, 20 de Mayo de 2017
-*	
 *	Ejercicio practico para la asignatura de Sistemas Operativos en Tiempo Real(SOTR)\
 *	de la Universidad de Malaga(UMA).
 *	<p>
@@ -20,7 +17,16 @@
 *	El programa esta pensado para ser ejecutado en una sistema GNU/Linux y un procesador\
 *	con un solo nucleo. Las pruebas se han realizado en un sistema GNU/Linux,\
 *	distribucion Feroda 25 LXDE DESKTOP con version kernel:	4.10.15-200.fc25.x86_64.
+*	<p>
+*	El programa se debe ejecutar con permisos de super usuario, se crearan 2 ficheros:
+*	<ul>
+*	<li> sensor_data.txt: Fichero que usarla index.js para pintar las graficas.
+*	<li> estacion_sotr.log: Ficherlo ubicado en /var/log para guardar un registro del\
+*		 programa.
+*	</ul>
 *
+*	@auth 	 Jose Manuel Rodriguez Montes
+*	@version 1.0, 24 de Mayo de 2017
 */
 #include <stdio.h>
 #include <unistd.h>
@@ -50,7 +56,7 @@
 #define MAX_TEMPERATURE 100
 #define MIN_TEMPERATURE 90
 
-#define ERROR_SET_PROTOCOL     0x01 // Codigo de errores, usar la funcion {@link #error(error_t error_code) error}
+#define ERROR_SET_PROTOCOL     0x01 // #E Codigo de errores, usar la funcion {@link #error(error_t error_code) error}
 #define ERROR_SET_PRIOCEILING  0x02
 #define ERROR_CLOCK_GETTIME    0x03
 #define ERROR_CLOCK_NANOSLEEP  0x04
@@ -78,10 +84,9 @@ typedef uint8_t state_t;
 int temp, press;
 pthread_mutex_t mutex_temp, mutex_press;
 state_t state;
-FILE *fp_temp, *fp_pres, *fp_sensor;
-const char *TEMP_FILE = "/home/j0sete/Documentos/Universidad/PRACTICA2_SOTR/temp_data.txt";
-const char *PRES_FILE = "/home/j0sete/Documentos/Universidad/PRACTICA2_SOTR/pres_data.txt";
-const char *DATA_FILE = "/home/j0sete/Documentos/Universidad/PRACTICA2_SOTR/sensor_data.txt";
+FILE *fp_sensor, *fp_log; // #F
+const char *DATA_FILE = "/home/j0sete/Documentos/Universidad/PRACTICA2_SOTR/sensor_data.txt"; // fichero donde guardamos los datos de los sensores
+const char *LOG_FILE = "/var/log/estacion_sotr.log"; // Fichero donde guardamos un registro log del programa
 
 
 
@@ -102,7 +107,8 @@ void *temperature_sensor( void *args); // #St
 void *monitoring( void *args); // #M
 
 /**
-*  	Funcion para hacer una espera activa
+*	@Deprecated
+*  	Funcion para hacer una espera activa. Finalmente no se utiliza.
 *
 *  	@param tiempo tiempo en milisegundos que queremos que espere la funcion
 */
@@ -121,7 +127,7 @@ void ms_espera_activa( int tiempo) {
 }
 
 /**
-*	Temporización mediante relojes. Cosas del profesor
+*	Temporización mediante relojes.
 *
 *	@param tm variable de tiempo a normalizar
 */
@@ -144,62 +150,87 @@ static void normalizar(struct timespec* tm) {
            ||(tm->tv_sec<0 && tm->tv_nsec>-1000000000L && tm->tv_nsec<=0));
 }
 
-/*
-*	Muestra por pantalla la hora actual.
+/**
+*	Devuelve en el parametro fecha la hora actual en el formato:\
+*	HH:MM:SS
 *
+*	@param fecha cadena de caracteres donde guardar la hora
+*	@param fecha_size tamaño que se tiene para guardar la cadena, MINIMO 9
 */
-void get_actual_time() {
-	time_t rawtime;
-	struct tm * timeinfo;
+void get_actual_date( char *fecha, size_t fecha_size) {
 
-	time( &rawtime);
-	timeinfo = localtime( &rawtime);
-	printf ("\n%s", asctime(timeinfo) );
+	time_t rawtime;
+	struct tm *tm_info;
+
+	time(&rawtime);
+	tm_info = localtime( &rawtime);
+
+	strftime(fecha, fecha_size, "%H:%M:%S", tm_info);
+
+}
+
+/**
+*	Funcion para guardar mensajes del programa en un fichero en /var/log
+*	TODO: log level for verbose
+*
+*	@param msg mensaje a guardar junto con el log
+*/
+void log_msg(char *msg) {
+
+	char *time_data;
+	static int cnt = 0;
+
+	time_data = malloc( sizeof(char) * 9);
+	get_actual_date(time_data, 9);
+
+	fprintf(fp_log, "%s::DEBUG::%d::%s\n", time_data, cnt++, msg);
+	fflush(fp_log);
+
+	free(time_data);
+
 }
 
 /**
 *	Funcion para mostrar errores por pantalla.
 *   
-*	@see Codigo de errores en linea 54
+*	@see Codigo de errores, etiqueta #E
 */
 void error(error_t error_code) {
 
-	get_actual_time();
-	
 	switch(error_code) {
 		case ERROR_SET_PROTOCOL:
-			printf("ERROR en __pthread_mutexattr_setprotocol\n");
+			log_msg("ERROR en __pthread_mutexattr_setprotocol");
 			break;
 		case ERROR_SET_PRIOCEILING:
-			printf("ERROR en __pthread_mutexattr_setprioceiling\n");
+			log_msg("ERROR en __pthread_mutexattr_setprioceiling");
 			break;
 		case ERROR_CLOCK_GETTIME:
-			printf("ERROR en __clock_gettime\n");
+			log_msg("ERROR en __clock_gettime");
 			break;
 		case ERROR_CLOCK_NANOSLEEP:
-			printf("ERROR en __clock_nanosleep\n");
+			log_msg("ERROR en __clock_nanosleep");
 			break;
 		case ERROR_PTRD_ATTR_INIT:
-			printf("ERROR en __pthread_attr_init\n");
+			log_msg("ERROR en __pthread_attr_init");
 			break;
 		case ERROR_PTRD_ATTR_SETINH:
-			printf("ERROR en __pthread_attr_setinheritsched\n");
+			log_msg("ERROR en __pthread_attr_setinheritsched");
 			break;
 		case ERROR_PTRD_ATTR_SETPOL:
-			printf("ERROR en __pthread_attr_setschedpolicy\n");
+			log_msg("ERROR en __pthread_attr_setschedpolicy");
 			break;
 		case ERROR_PTRD_SETSCHED:
-			printf("ERROR en __pthread_attr_setschedparam\n");
+			log_msg("ERROR en __pthread_attr_setschedparam");
 			break;
 		case ERROR_PTRD_CREATE:
-			printf("ERROR en __pthread_create\n");
+			log_msg("ERROR en __pthread_create");
 			break;
 		default:
-			printf("ERROR UNKOWN\n");
+			log_msg("ERROR UNKOWN");
 
 	}
 
-	printf("Exiting of the program...\n");
+	log_msg("Exiting of the program...");
 	exit(-1);
 }
 
@@ -260,10 +291,9 @@ int main() {
 	pthread_join(sensor_presion, NULL); // #Sp
 	pthread_join(sensor_temperatura, NULL); // #St
 
-	// cerrarmos fichero
-	fclose(fp_pres);
-	fclose(fp_temp);
+	// cerrarmos fichero #F
 	fclose(fp_sensor);
+	fclose(fp_log);
 	
 	return 0;
 }
@@ -276,7 +306,7 @@ int main() {
 
 
 /**
-*	Funcion para inicializar la estacion, con los valores por defecto.
+*	Funcion para inicializar la estacion, con los valores por defecto. #F
 *
 */
 void init_station() {
@@ -286,15 +316,14 @@ void init_station() {
 	temp = 80;
 	press = 800;
 
-	// Inicializamos el fichero 
-	fp_temp = fopen(TEMP_FILE, "w+");
-	fp_pres = fopen(PRES_FILE, "w+");
-	fp_sensor = fopen(DATA_FILE, "w+");
+	// Abrimos los ficheros
+	fp_sensor = fopen(DATA_FILE, "a+");
+	fp_log = fopen(LOG_FILE, "a+");
 
 }
 
 /**
-*	Funcion para inicializar los mutex que utilizaran las hebras
+*	Funcion para inicializar los mutex que utilizaran las hebras.
 *
 */
 void configure_mutex() {
@@ -350,15 +379,15 @@ void *pressure_control( void *args) {
 			// Abrimos la valvula para bajar la presion
 			state |= ACT_PRES;
 			//get_actual_time();
-			//printf("CONTROL DE PRESION: ABRIENDO la valvula de presion...\n");
+			log_msg("CONTROL DE PRESION: ABRIENDO la valvula de presion...");
 		}
 		else if (press < MIN_PRESSURE && (state & PRES_MASK) > 0) {
 			// Cerramos la valvula de presion
 			state &= DEACT_PRES;
 			//get_actual_time();
-			//printf("CONTROL DE PRESION: CERRANDO la valvula de presion...\n");
+			log_msg("CONTROL DE PRESION: CERRANDO la valvula de presion...");
 		}
-		//ms_espera_activa(350); // TODO: ir a funciones para ver el estado
+		//ms_espera_activa(350);
 
 		//printf("Cp::Soltando mutex_press\n");
 		pthread_mutex_unlock(&mutex_press);
@@ -402,16 +431,16 @@ void *temperature_control( void *args) {
 			state |= ACT_TEMP;
 
 			//get_actual_time();
-			//printf("CONTROL DE TEMPERATURA: ACTIVANDO sistema de refrigeracion...\n");
+			log_msg("CONTROL DE TEMPERATURA: ACTIVANDO sistema de refrigeracion...");
 		}
 		else if (temp < MIN_TEMPERATURE && (state & TEMP_MASK) > 0) {
 			// Desactivamos refrigeracion
 			state &= DEACT_TEMP;
 
 			//get_actual_time();
-			//printf("CONTROL DE TEMPERATURA: DESACTIVANDO sistema de refrigeracion...\n");
+			log_msg("CONTROL DE TEMPERATURA: DESACTIVANDO sistema de refrigeracion...");
 		}
-		//ms_espera_activa(450); // TODO: ir a funciones para ver el estado
+		//ms_espera_activa(450);
 
 		//printf("Ct::Soltando mutex_temp\n");
 		pthread_mutex_unlock(&mutex_temp);
@@ -456,7 +485,7 @@ void *pressure_sensor( void *args) {
 			// valvula cerrada
 			press += 10;
 		}
-		//ms_espera_activa(250); // TODO: ir a funciones para ver el estado
+		//ms_espera_activa(250);
 
 		//printf("Sp::Soltando mutex_press\n");
 		pthread_mutex_unlock(&mutex_press);
@@ -502,7 +531,7 @@ void *temperature_sensor( void *args) {
 			// refrigeracion desactivada
 			temp += 1;
 		}
-		//ms_espera_activa(370); // TODO: ir a funciones para ver el estado
+		//ms_espera_activa(370);
 
 		//printf("St::Soltando mutex_temp\n");
 		pthread_mutex_unlock(&mutex_temp);
@@ -545,7 +574,6 @@ void *monitoring( void *args) {
 		//printf("M::Cogido mutex_press\n");
 
 		printf("\n\n");
-		get_actual_time();
 		printf("=============================================\n");
 		printf("ESTADO DEL SISTEMA:\n");
 		printf("-Temperatura = %d\n", temp);
@@ -595,14 +623,20 @@ void *monitoring( void *args) {
 
 }
 
+/**
+*	Funcion para guardar los datos de los sensores. Es llamada por #monitoring() #M
+*	#F
+*/
 void write_data() {
-	
-	fprintf(fp_temp, "%d\n", temp);
-	fflush(fp_temp);
 
-	fprintf(fp_pres, "%d\n", press);
-	fflush(fp_pres);
+	char *time_data;
+	time_data = malloc( sizeof(char) * 9); // Usamos 9 porque es el minimo tamaño necesario {@link #get_actual_time(char *, size_t)}
 
-	fprintf(fp_sensor, "%d %d\n", temp, press);
-	fflush(fp_sensor);
+	get_actual_date(time_data, 9);
+
+	fprintf(fp_sensor, "%s %d %d\n", time_data, temp, press);
+	fflush(fp_sensor); // Para que los datos se vuelquen en el fichero
+
+	free(time_data);
+
 }
